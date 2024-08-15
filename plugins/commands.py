@@ -15,27 +15,38 @@ from utils import get_settings, get_size, is_subscribed, is_check_admin, get_sho
 import requests
 from telegraph import upload_file
 
-@Client.on_message(filters.command("ask") & filters.incoming) #add your support grp
+# Fix for the /ask handler to avoid IndexError
+@Client.on_message(filters.command("ask") & filters.incoming)  # add your support grp
 async def aiRes(_, message):
     if message.chat.id == SUPPORT_GROUP:
-        asked = message.text.split(None, 1)[1]
-        if not asked:
+        asked_split = message.text.split(None, 1)
+        if len(asked_split) < 2:
             return await message.reply("Bhai kuch puch to le /ask k baad !")
+        asked = asked_split[1]
         thinkStc = await message.reply_sticker(sticker=random.choice(STICKERS_IDS))
-        url = f"https://bisal-ai-api.vercel.app/biisal" 
-        res = requests.post(url , data={'query' : asked})
-        if res.status_code == 200:
-            response = res.json().get("response")
+        url = f"https://bisal-ai-api.vercel.app/biisal"
+        try:
+            res = requests.post(url, data={'query': asked}, timeout=10)
+            if res.status_code == 200:
+                response = res.json().get("response")
+                await thinkStc.delete()
+                await message.reply(f"<b>hey {message.from_user.mention()},\n{response.lstrip() if response.startswith(' ') else response}</b>")
+            else:
+                await thinkStc.delete()
+                await message.reply("Mausam kharab hai ! Thode der mein try kre ! or Report to Developer.")
+        except requests.RequestException as e:
             await thinkStc.delete()
-            await message.reply(f"<b>hey {message.from_user.mention()},\n{response.lstrip() if response.startswith(' ') else response}</b>")
-        else:
-            await thinkStc.delete()
-            await message.reply("Mausam kharab hai ! Thode der mein try kre !\nor Report to Developer.")
+            await message.reply(f"Request failed: {str(e)}")
     else:
-        btn = [[
-            InlineKeyboardButton('💡 Support Group 💡', url=SUPPORT_LINK)
-        ]]
+        btn = [[InlineKeyboardButton('💡 Support Group 💡', url=SUPPORT_LINK)]]
         await message.reply(f"<b>hey {message.from_user.mention},\n\nPlease use this command in support group.</b>", reply_markup=InlineKeyboardMarkup(btn))
+
+# Fix for potential from_user NoneType in the /start handler
+if message.from_user:
+    user_mention = message.from_user.mention
+else:
+    user_mention = "Unknown User"
+    
         
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
